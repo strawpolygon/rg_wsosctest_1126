@@ -1,0 +1,1127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Waveshaper</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@400;500;600;700&family=VT323&display=swap" rel="stylesheet">
+<style>
+:root{
+  --plate:#D9DED6; --plate-edge:#C3CAC0; --ink:#1E2A2B; --ink-soft:#56635F;
+  --cobalt:#2F45C4; --cobalt-ink:#FFFFFF; --scope:#17211F; --trace:#9FE3C4; --grid:#2A3836;
+  --knob:#EEF1EC; --knob-shadow:rgba(30,42,43,.28);
+  --well:#E8ECE5; --well-grid:#C9D0C6; --bar:rgba(47,69,196,.38); --unused:rgba(30,42,43,.10); --drawn:rgba(30,42,43,.78);
+  color-scheme:light;
+  box-sizing:border-box;
+  padding-top:env(safe-area-inset-top,0px);
+  padding-bottom:env(safe-area-inset-bottom,0px);
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --plate:#262C2A; --plate-edge:#353D3A; --ink:#E4E9E3; --ink-soft:#9BA8A2;
+    --cobalt:#6F82F0; --cobalt-ink:#0E1430; --scope:#0F1514; --trace:#9FE3C4; --grid:#22302D;
+    --knob:#3A4340; --knob-shadow:rgba(0,0,0,.5);
+    --well:#1D2321; --well-grid:#323A37; --bar:rgba(111,130,240,.42); --unused:rgba(0,0,0,.35); --drawn:rgba(228,233,227,.8);
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --plate:#262C2A; --plate-edge:#353D3A; --ink:#E4E9E3; --ink-soft:#9BA8A2;
+  --cobalt:#6F82F0; --cobalt-ink:#0E1430; --scope:#0F1514; --trace:#9FE3C4; --grid:#22302D;
+  --knob:#3A4340; --knob-shadow:rgba(0,0,0,.5);
+  --well:#1D2321; --well-grid:#323A37; --bar:rgba(111,130,240,.42); --unused:rgba(0,0,0,.35); --drawn:rgba(228,233,227,.8);
+  color-scheme:dark;
+}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*,*::before,*::after{box-sizing:inherit}
+body{
+  margin:0; min-height:100%; background:var(--plate); color:var(--ink);
+  font-family:"Barlow Semi Condensed","Arial Narrow",system-ui,sans-serif;
+  font-size:1.0625rem; line-height:1.4;
+}
+main{max-width:54rem; margin:0 auto; padding:2rem 1.25rem 3rem}
+h1{font-size:1.75rem; font-weight:600; letter-spacing:.01em; margin:0 0 .25rem}
+h2{font-size:1.2rem; font-weight:600; margin:0}
+.lede{color:var(--ink-soft); margin:0 0 1.5rem; max-width:40rem}
+
+.transport{display:grid; grid-template-columns:minmax(9rem,14rem) 1fr; gap:1.5rem; align-items:center; margin-top:1rem}
+@media (max-width:480px){.transport{grid-template-columns:1fr}}
+.play{
+  font:inherit; font-size:1.15rem; font-weight:600; border:0; border-radius:10px;
+  padding:.75rem 1rem; background:var(--cobalt); color:var(--cobalt-ink); cursor:pointer; width:100%;
+}
+.play[aria-pressed="true"]{background:var(--ink); color:var(--plate)}
+.play:focus-visible{outline:3px solid var(--cobalt); outline-offset:3px}
+.field-label{display:block; color:var(--ink-soft); font-size:.95rem; margin-bottom:.25rem}
+input[type=range]{width:100%; accent-color:var(--cobalt)}
+.row{display:flex; gap:.75rem; align-items:center}
+.row output{min-width:3ch; text-align:right; font-variant-numeric:tabular-nums}
+
+.editor{margin-top:1.75rem; container-type:inline-size}
+.editor-title{margin-bottom:.5rem}
+.crt{
+  /* designed at 554 px wide, then scaled with the column: 1cqw = 1% of the column width */
+  background:#000; border-radius:12px; padding:2.166cqw 2.166cqw 2.166cqw 3.249cqw; width:100%; position:relative;
+  display:grid; grid-template-columns:auto minmax(0,1fr); gap:0; align-items:stretch;
+  font-family:"VT323", ui-monospace, "Courier New", monospace; color:#55FFFF;
+}
+/* 7-character monospaced column, one character's gap before the frame */
+.crt-read{display:flex; flex-direction:column; justify-content:space-between; font-size:3.971cqw; line-height:1; padding:.722cqw 1ch 4.332cqw 0} /* spans the frame, not the axis numbers */
+@media (max-width:620px){
+  .crt{grid-template-columns:1fr; padding:12px; row-gap:1rem}
+  .crt #tf{height:240px}
+  .crt-read{flex-direction:row; flex-wrap:wrap; justify-content:flex-start; gap:1rem 2ch; padding:0; font-size:22px}
+}
+.crt-group{display:flex; flex-direction:column}
+.crt-row{display:flex; justify-content:space-between; align-items:baseline; width:7ch; white-space:pre}
+.crt-row.end{justify-content:flex-end}
+.fld{
+  font:inherit; color:#55FFFF; background:transparent; border:0; outline:none; text-align:right;
+  padding:0; margin:0; border-radius:0; caret-color:transparent; box-shadow:none;
+}
+.fld.w1{width:1ch} .fld.w2{width:2ch} .fld.w3{width:3ch}
+.fld::selection{background:transparent; color:#FF55FF}
+.fld:focus{color:#FF55FF}
+.crt.blink-on .fld:focus{box-shadow:0 2px 0 #FFFFFF} /* toggled every 250 ms by the draw loop, in step with the point marker */
+.edit-toggle{display:inline-flex}
+.edit-toggle button,.crt-btn{font:inherit; line-height:inherit; background:transparent; border:0; padding:0; margin:0; cursor:pointer; color:rgba(85,255,255,.4)}
+.edit-toggle button[aria-checked="true"]{color:#FF55FF}
+.crt-btn{color:#FF55FF}
+.crt-btn:disabled{color:rgba(255,85,255,.3); cursor:default}
+.crt-btn.red{color:#FF4040}
+.crt-btn.red:disabled{color:rgba(255,64,64,.3)}
+.edit-toggle button:focus-visible{outline:1px solid #FF55FF; outline-offset:1px}
+.edit-toggle:focus,.crt-btn:focus-visible{outline:none}
+/* keyboard selection in the readout column: the same blinking underline as the entry fields */
+.crt.blink-on .edit-toggle:focus,.crt.blink-on .crt-btn:focus-visible{box-shadow:0 2px 0 #FFFFFF}
+/* modal-like prompt over the plot */
+.crt-modal{position:absolute; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,.45)}
+.crt-modal[hidden]{display:none}
+.crt-modal-box{background:#000; border:2px solid #FF55FF; padding:1em 1.4em .8em; color:#55FFFF; text-align:center; font-size:3.6cqw; line-height:1.1; max-width:90%; white-space:pre;
+  min-width:calc(28ch + 2.8em); min-height:5.8em; display:flex; flex-direction:column; justify-content:center} /* one size for prompts and messages */
+.crt-modal-acts{display:flex; justify-content:center; gap:3ch; margin-top:.6em}
+.crt-modal-acts[hidden]{display:none}
+.modal-fld{width:26ch; max-width:100%; text-align:center; margin:.35em auto 0}
+.modal-fld[hidden]{display:none}
+.crt-modal-acts button{font:inherit; background:transparent; border:0; padding:0 .2ch; cursor:pointer; color:#55FFFF; outline:none}
+.crt-modal-acts button:focus{color:#FF55FF}
+@media (max-width:620px){.crt-modal-box{font-size:22px}}
+.plot-wrap{position:relative; min-width:0}
+#tf{display:block; width:100%; height:55.60cqw; touch-action:none; cursor:crosshair; outline:none}
+#tf:focus-visible{outline:2px solid #FF55FF; outline-offset:3px}
+.tools{display:flex; flex-wrap:wrap; gap:.4rem; margin-top:.6rem}
+.tools button{
+  font:inherit; font-size:.95rem; color:var(--ink); background:transparent;
+  border:1.5px solid var(--plate-edge); border-radius:8px; padding:.3rem .7rem; cursor:pointer;
+}
+.tools button:hover:not(:disabled){border-color:var(--cobalt); color:var(--cobalt)}
+.tools button:disabled{opacity:.45; cursor:default}
+.tools button:focus-visible{outline:3px solid var(--cobalt); outline-offset:2px}
+.note{color:var(--ink-soft); font-size:.9rem; margin:.5rem 0 0; max-width:42rem}
+
+
+.panels{display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:min(1rem,2cqw); margin-top:1.75rem; container-type:inline-size}
+.panel{border:1.5px solid var(--plate-edge); border-radius:14px; padding:min(1rem,2cqw) min(.9rem,1.6cqw) min(1.1rem,2.4cqw)}
+.panel h2{margin-bottom:min(1rem,2.5cqw); font-size:min(1.2rem,3.2cqw)}
+@container (max-width:640px){.panel h2{min-height:2.8em}} /* titles may wrap; keep the knob row level */
+.knobs{display:grid; grid-template-columns:1fr 1fr; gap:min(1rem,1.5cqw)}
+.knob-col{display:flex; flex-direction:column; align-items:center; gap:min(1.1rem,2.4cqw)}
+.knob-block{display:flex; flex-direction:column; align-items:center; gap:.35rem}
+.knob{
+  width:min(5.75rem,12cqw); height:min(5.75rem,12cqw); border-radius:50%; position:relative; cursor:grab;
+  touch-action:none; outline:none;
+}
+.knob svg{display:block; width:100%; height:100%; overflow:visible}
+.knob:active{cursor:grabbing}
+.knob:focus-visible{box-shadow:0 0 0 3px var(--plate),0 0 0 6px var(--cobalt)}
+.knob-label{font-weight:600; font-size:min(1.0625rem,3cqw)}
+
+.switch-block{display:flex; flex-direction:column; align-items:center; gap:.5rem}
+.switch-block,.row2{justify-content:flex-end; min-height:calc(min(5.75rem,12cqw) + min(.35rem,1cqw) + 1.5 * min(1.0625rem,3cqw))}
+.leds{display:flex; gap:min(1.1rem,1.8cqw)}
+.led-item{display:flex; flex-direction:column; align-items:center; gap:.25rem; font-size:min(.85rem,2.5cqw); color:var(--ink-soft); min-width:min(2.2rem,5cqw)}
+.led{width:10px; height:10px; border-radius:50%; background:#4A1515; box-shadow:inset 0 0 0 1px rgba(0,0,0,.4)}
+.led.on{background:#FF3B30; box-shadow:0 0 6px 2px rgba(255,59,48,.55), inset 0 0 0 1px rgba(0,0,0,.2)}
+.led-item.on{color:var(--ink)}
+.tact{
+  width:min(2.6rem,6cqw); height:min(2.6rem,6cqw); border-radius:50%; border:0; padding:0; cursor:pointer; background:#111111;
+  box-shadow:0 0 0 3px #C4C4C4, 0 3px 6px rgba(0,0,0,.3), inset 0 -2px 3px rgba(255,255,255,.08);
+  transition:transform .05s;
+}
+.tact:active{transform:translateY(1px) scale(.97); box-shadow:0 0 0 3px #C4C4C4, 0 1px 2px rgba(0,0,0,.3), inset 0 2px 3px rgba(0,0,0,.4)}
+.tact:focus-visible{outline:3px solid var(--cobalt); outline-offset:6px}
+.switch-label{font-weight:600; font-size:min(1.0625rem,3cqw)}
+
+.hint{color:var(--ink-soft); font-size:.9rem; margin-top:1.5rem; max-width:42rem}
+.hint + .hint{margin-top:.5rem}
+</style>
+</head>
+<body>
+<main>
+  <h1>Waveshaper</h1>
+  <p class="lede">A sine wave passes through a transfer function you build from a mix of Chebyshev polynomials, draw by hand, or both. A second sine can sweep its pitch, its level going into the shaper, or both.</p>
+
+  <div class="transport">
+    <button class="play" id="play" aria-pressed="false">Play</button>
+    <div>
+      <label class="field-label" for="vol">Output volume</label>
+      <div class="row">
+        <input type="range" id="vol" min="0" max="100" value="30">
+        <output id="volOut" for="vol">30</output>
+      </div>
+    </div>
+  </div>
+
+  <section class="editor" aria-labelledby="tf-title">
+    <h2 id="tf-title" class="editor-title">Transfer function</h2>
+    <div class="crt">
+      <div class="crt-read">
+        <div class="crt-group">
+          <div class="crt-row"><button id="bankRcl" class="crt-btn" aria-label="Bank load: load slots from a text file">BnkLoad</button></div>
+          <div class="crt-row"><button id="bankStr" class="crt-btn" aria-label="Bank store: save all slots to a text file">BnkStor</button></div>
+          <label class="crt-row"><span>Load</span><input id="inRcl" class="fld w2" maxlength="2" inputmode="numeric" autocomplete="off" spellcheck="false" aria-label="Load slot, 00 to 24"></label>
+          <label class="crt-row"><span>Stor</span><input id="inStr" class="fld w2" maxlength="2" inputmode="numeric" autocomplete="off" spellcheck="false" aria-label="Store to slot, 01 to 24"></label>
+          <input type="file" id="bankFile" accept=".txt,text/plain" hidden>
+        </div>
+        <div class="crt-group">
+          <div class="crt-row"><span>Edit</span><span class="edit-toggle" id="editSel" tabindex="-1" role="radiogroup" aria-label="Edit mode"><button id="editP" role="radio" aria-checked="true" aria-label="Edit points">P</button><button id="editH" role="radio" aria-checked="false" aria-label="Edit harmonics">H</button></span></div>
+        </div>
+        <div class="crt-group">
+          <label class="crt-row"><span>Pnt</span><input id="inPnt" class="fld w2" inputmode="numeric" autocomplete="off" maxlength="2" aria-label="Point number, 00 to 63"></label>
+          <label class="crt-row"><span>Vl</span><input id="inPv" class="fld w3" inputmode="numeric" autocomplete="off" maxlength="3" aria-label="Point value, 0 to 255"></label>
+          <div class="crt-row"><button id="relPnt" class="crt-btn">Rls Pnt</button></div>
+          <div class="crt-row"><button id="releaseBtn" class="crt-btn red">Rls All</button></div>
+        </div>
+        <div class="crt-group">
+          <label class="crt-row"><span>Hrm</span><input id="inHrm" class="fld w2" inputmode="numeric" autocomplete="off" maxlength="2" aria-label="Harmonic number, 1 to 24"></label>
+          <label class="crt-row"><span>Vl</span><input id="inHv" class="fld w3" inputmode="numeric" autocomplete="off" maxlength="3" aria-label="Harmonic weight, 0 to 255"></label>
+        </div>
+      </div>
+      <div class="plot-wrap">
+      <canvas id="tf" tabindex="0" role="slider" aria-label="Transfer function display"
+          aria-valuemin="0" aria-valuemax="255" aria-valuenow="128"
+          aria-description="P and H switch edit mode. Left and right arrows choose a point or harmonic, up and down arrows change its value, Delete releases a point or zeroes a harmonic."></canvas>
+        <div class="crt-modal" id="modal" hidden>
+          <div class="crt-modal-box" role="alertdialog" aria-modal="true" aria-labelledby="modalMsg">
+            <div id="modalMsg"></div>
+            <input id="modalInput" class="fld modal-fld" hidden autocomplete="off" spellcheck="false" maxlength="60" aria-label="File name">
+            <div class="crt-modal-acts" id="modalActs"><button id="modalOk">OK</button><button id="modalCancel">Cancel</button></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="panels">
+    <section class="panel" aria-labelledby="car-title">
+      <h2 id="car-title">Principal Oscillator</h2>
+      <div class="knobs">
+        <div class="knob-col"><div class="knob-block">
+            <div class="knob" id="pitchKnob" role="slider" tabindex="0" aria-label="Pitch" aria-valuemin="0" aria-valuemax="8000"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="40.75" fill="#111111" stroke="#C4C4C4" stroke-width="6.5"/><circle cx="60" cy="60" r="44.75" fill="none" stroke="#D3302F" stroke-width="1.5"/><polygon class="pointer" points="54,14.5 66,14.5 60,3.5" fill="#D3302F"/></svg></div>
+            <span class="knob-label">Pitch</span>
+          </div></div>
+        <div class="knob-col"><div class="knob-block">
+            <div class="knob" id="gainKnob" role="slider" tabindex="0" aria-label="Timbre" aria-valuemin="0" aria-valuemax="1"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="40.75" fill="#111111" stroke="#C4C4C4" stroke-width="6.5"/><circle cx="60" cy="60" r="44.75" fill="none" stroke="#D3302F" stroke-width="1.5"/><polygon class="pointer" points="54,14.5 66,14.5 60,3.5" fill="#D3302F"/></svg></div>
+            <span class="knob-label">Timbre</span>
+          </div></div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="mod-title">
+      <h2 id="mod-title">Modulation Oscillator</h2>
+      <div class="knobs">
+        <div class="knob-col">
+          <div class="knob-block">
+            <div class="knob" id="rateKnob" role="slider" tabindex="0" aria-label="Modulation frequency"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="40.75" fill="#111111" stroke="#C4C4C4" stroke-width="6.5"/><circle cx="60" cy="60" r="44.75" fill="none" stroke="#D3302F" stroke-width="1.5"/><polygon class="pointer" points="54,14.5 66,14.5 60,3.5" fill="#D3302F"/></svg></div>
+            <span class="knob-label">Frequency</span>
+          </div>
+          <div class="switch-block">
+            <div class="leds" aria-hidden="true">
+              <span class="led-item" id="li-fixed"><span class="led"></span>Fixed</span>
+              <span class="led-item" id="li-ratio"><span class="led"></span>Ratio</span>
+            </div>
+            <button class="tact" id="modeBtn"></button>
+            <span class="switch-label">Mode</span>
+          </div>
+        </div>
+        <div class="knob-col">
+          <div class="knob-block">
+            <div class="knob" id="indexKnob" role="slider" tabindex="0" aria-label="Modulation index" aria-valuemin="0" aria-valuemax="1"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="40.75" fill="#111111" stroke="#C4C4C4" stroke-width="6.5"/><circle cx="60" cy="60" r="44.75" fill="none" stroke="#D3302F" stroke-width="1.5"/><polygon class="pointer" points="54,14.5 66,14.5 60,3.5" fill="#D3302F"/></svg></div>
+            <span class="knob-label">Index</span>
+          </div>
+          <div class="switch-block">
+            <div class="leds" aria-hidden="true">
+              <span class="led-item" id="li-fm"><span class="led"></span>FM</span>
+              <span class="led-item" id="li-tm"><span class="led"></span>TM</span>
+            </div>
+            <button class="tact" id="typeBtn"></button>
+            <span class="switch-label">Type</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel" aria-labelledby="filt-title">
+      <h2 id="filt-title">Filter</h2>
+      <div class="knobs">
+        <div class="knob-col">
+          <div class="knob-block">
+            <div class="knob" id="filterKnob" role="slider" tabindex="0" aria-label="Filter cutoff" aria-valuemin="0" aria-valuemax="1"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="40.75" fill="#111111" stroke="#C4C4C4" stroke-width="6.5"/><circle cx="60" cy="60" r="44.75" fill="none" stroke="#D3302F" stroke-width="1.5"/><polygon class="pointer" points="54,14.5 66,14.5 60,3.5" fill="#D3302F"/></svg></div>
+            <span class="knob-label">Filter</span>
+          </div>
+          <div class="knob-block row2">
+            <div class="knob" id="flqKnob" role="slider" tabindex="0" aria-label="Filter resonance" aria-valuemin="0" aria-valuemax="1"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="40.75" fill="#111111" stroke="#C4C4C4" stroke-width="6.5"/><circle cx="60" cy="60" r="44.75" fill="none" stroke="#D3302F" stroke-width="1.5"/><polygon class="pointer" points="54,14.5 66,14.5 60,3.5" fill="#D3302F"/></svg></div>
+            <span class="knob-label">FLQ</span>
+          </div>
+        </div>
+        <div class="knob-col">
+          <div class="knob-block">
+            <div class="knob" id="levelKnob" role="slider" tabindex="0" aria-label="Level" aria-valuemin="0" aria-valuemax="1"><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="40.75" fill="#111111" stroke="#C4C4C4" stroke-width="6.5"/><circle cx="60" cy="60" r="44.75" fill="none" stroke="#D3302F" stroke-width="1.5"/><polygon class="pointer" points="54,14.5 66,14.5 60,3.5" fill="#D3302F"/></svg></div>
+            <span class="knob-label">Level</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <p class="hint" id="engineOut"></p>
+</main>
+
+<script>
+(() => {
+  const N = 64, TABLE = 512;
+  const BITS = 12, Q = 1 << (BITS - 1); // signed 12-bit: integers −2048..2047, scaled by 1/2048
+  const MAX_F = 8000, PITCH_OCT = 13; // Pitch knob: 0 Hz … 8 kHz, exponential curve that reaches true zero
+  const MOD_MIN = 0.1, MOD_MAX = 2000; // Fixed mode range, log taper
+  const NOTES = ["C","C♯","D","D♯","E","F","F♯","G","G♯","A","A♯","B"];
+  const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+  const fmt = v => (v < 0 ? "−" : "") + Math.abs(v).toFixed(2);
+  const fmtHz = f => (f < 10 ? f.toFixed(2) : f < 100 ? f.toFixed(1) : Math.round(f)) + " Hz";
+
+  // ---------- state ----------
+  let pitchT = Math.log2(220 * (2 ** PITCH_OCT - 1) / MAX_F + 1) / PITCH_OCT;
+  let inGain = 0.8, volume = 0.3, playing = false;
+  let rateT = Math.log(2 / MOD_MIN) / Math.log(MOD_MAX / MOD_MIN), ratioT = 0.5, modMode = "fixed", typeBits = 0, indexT = 0, index = 0, fmOn = false, amOn = false;
+  const bp = new Float32Array(N);          // the 64 drawn breakpoints, −1..1
+  const table = new Float32Array(TABLE);   // 512-value shaping table, 12-bit values
+  let tableDirty = true;
+  let filtT = 1, flq = 0, lvl = 1;   // Filter fully open, no resonance, Level full
+  let ctx, voice, dsp, env, master;
+
+  const freq = () => MAX_F * (2 ** (PITCH_OCT * pitchT) - 1) / (2 ** PITCH_OCT - 1);
+  const modFreq = () => MOD_MIN * Math.pow(MOD_MAX / MOD_MIN, rateT);
+  // Ratio mode: knob position → modulation:principal frequency ratio, 1/16 … 1 … 16 (log scale).
+  // A cubic blend flattens the middle of the travel so values near 1:1 get more room.
+  const RATIO_S = 0.85; // 0 = plain log taper, 1 = pure cubic (flat at center)
+  const ratioFromT = t => { const u = 2 * t - 1; return Math.pow(2, 4 * ((1 - RATIO_S) * u + RATIO_S * u * u * u)); };
+  const fmtRatio = r => r >= 1 ? `1:${r.toFixed(r < 10 ? 2 : 1)}` : `${(1 / r).toFixed(1 / r < 10 ? 2 : 1)}:1`;
+  const noteName = f => {
+    if (f < 8) return "—";
+    const m = Math.round(69 + 12 * Math.log2(f / 440));
+    return NOTES[((m % 12) + 12) % 12] + (Math.floor(m / 12) - 1);
+  };
+
+  // ---------- DSP ----------
+  // Runs per sample inside the AudioWorklet (or the fallback). Signal path:
+  //   mod sine (bipolar) ─┬─ × index × 4 oct → exponential FM of the carrier
+  //                       └─ × index + input gain → clip 0..1 (timbre modulation)
+  //   carrier sine × gain → quantize to one of 512 table positions → 12-bit table value
+  //   → DC blocker → 12 dB/oct resonant low-pass, cutoff tracking the unmodulated pitch → output VCA (Level)
+  // This function is serialized into the worklet, so it must be self-contained.
+  function createDSP(sr) {
+    const TAU = 2 * Math.PI, OCT = 4;
+    const FLO = 0.25, FHI = 64, FCEIL = 12000; // Filter knob: Pitch/4 → the higher of Pitch×64 or 12 kHz
+    const VCA_DB = 60, VDRIVE = 0.7; // Level: dB-linear (exponential) law over 60 dB, gentle tanh saturation
+    const DCR = 1 - TAU * 5 / sr;     // DC blocker: one-pole high-pass, about 5 Hz
+    const KMIN = 0.15;           // damping floor at full FLQ (Q ≈ 6.7): rings hard, never self-oscillates
+    const a = 1 - Math.exp(-1 / (0.005 * sr)); // ~5 ms smoothing on knob moves
+    const s = { t: new Float32Array(512), f0: 220, gain: 0.8, mf: 1, ratio: 1, rm: false, idx: 0, fm: false, am: false,
+                cf0: 220, cgain: 0.8, cmf: 1, cratio: 1, cidx: 0, cp: 0, mp: 0, ready: false,
+                filt: 1, res: 0, cfilt: 1, cres: 0, ic1: 0, ic2: 0, lvl: 1, clvl: 1, dcx: 0, dcy: 0 };
+    return {
+      set(p) {
+        Object.assign(s, p);
+        if (!s.ready) { s.cf0 = s.f0; s.cgain = s.gain; s.cmf = s.mf; s.cidx = s.idx; s.cratio = s.ratio; s.cfilt = s.filt; s.cres = s.res; s.clvl = s.lvl; s.ready = true; }
+      },
+      render(out) {
+        const t = s.t, L = t.length - 1;
+        for (let n = 0; n < out.length; n++) {
+          s.cf0 += (s.f0 - s.cf0) * a; s.cgain += (s.gain - s.cgain) * a;
+          s.cmf += (s.mf - s.cmf) * a; s.cidx += (s.idx - s.cidx) * a; s.cratio += (s.ratio - s.cratio) * a;
+          s.cfilt += (s.filt - s.cfilt) * a; s.cres += (s.res - s.cres) * a; s.clvl += (s.lvl - s.clvl) * a;
+
+          const mod = Math.sin(TAU * s.mp);
+          // Ratio mode tracks the principal's unmodulated pitch
+          let mf = s.rm ? s.cf0 * s.cratio : s.cmf;
+          if (mf > sr / 2) mf = sr / 2;
+          s.mp += mf / sr; s.mp -= Math.floor(s.mp);
+
+          let f = s.cf0;
+          if (s.fm) f *= Math.pow(2, OCT * s.cidx * mod);
+          if (f > sr / 2) f = sr / 2;
+
+          let g = s.cgain;
+          if (s.am) { g += s.cidx * mod; g = g < 0 ? 0 : g > 1 ? 1 : g; }
+
+          const x = g * Math.sin(TAU * s.cp);
+          s.cp += f / sr; s.cp -= Math.floor(s.cp);
+
+          const y = t[Math.round((x + 1) * 0.5 * L)];
+
+          // DC blocker between the shaper and the filter: y[n] = x[n] − x[n−1] + R·y[n−1]
+          const yb = y - s.dcx + DCR * s.dcy;
+          s.dcx = y; s.dcy = yb;
+
+          // 2-pole state-variable low-pass (trapezoidal), soft saturation in the resonant path
+          // Bottom: two octaves below pitch (1 Hz floor keeps the log scale defined at 0 Hz).
+          // Top: six octaves above pitch, but never below 12 kHz, so low pitches can open fully.
+          // Above ~190 Hz this is exactly the old 8-octave tracking range.
+          const fLo = Math.max(s.cf0 * FLO, 1), fHi = Math.max(s.cf0 * FHI, FCEIL);
+          let fc = fLo * Math.pow(fHi / fLo, s.cfilt);
+          if (fc > 0.45 * sr) fc = 0.45 * sr;
+          const gf = Math.tan(Math.PI * fc / sr), k = 2 - (2 - KMIN) * s.cres;
+          const a1 = 1 / (1 + gf * (gf + k)), a2 = gf * a1, a3 = gf * a2;
+          const v3 = yb - s.ic2;
+          const v1 = Math.tanh(a1 * s.ic1 + a2 * v3);
+          const v2 = s.ic2 + a2 * s.ic1 + a3 * v3;
+          s.ic1 = 2 * v1 - s.ic1; s.ic2 = 2 * v2 - s.ic2;
+
+          // Output VCA, after the filter: exponential gain law like SSM VCAs, the last 5% of travel
+          // fades linearly to true silence, and a mild tanh adds their soft compression at high levels
+          const gv = Math.pow(10, (s.clvl - 1) * VCA_DB / 20) * Math.min(1, s.clvl * 20);
+          out[n] = Math.tanh(v2 * gv * VDRIVE) / VDRIVE;
+        }
+      }
+    };
+  }
+
+  const WORKLET = `
+    const createDSP = ${createDSP.toString()};
+    class Voice extends AudioWorkletProcessor {
+      constructor() { super(); this.d = createDSP(sampleRate); this.port.onmessage = e => this.d.set(e.data); }
+      process(inputs, outputs) {
+        const out = outputs[0];
+        this.d.render(out[0]);
+        for (let c = 1; c < out.length; c++) out[c].set(out[0]);
+        return true;
+      }
+    }
+    registerProcessor("waveshaper-voice", Voice);`;
+
+  function send(p) {
+    if (voice && voice.port) voice.port.postMessage(p);
+    else if (dsp) dsp.set(p);
+  }
+  const allParams = () => ({ t: new Float32Array(table), f0: freq(), gain: inGain, mf: modFreq(), ratio: ratioFromT(ratioT), rm: modMode === "ratio", idx: index, fm: fmOn, am: amOn, filt: filtT, res: flq, lvl: lvl });
+
+  // ---------- transfer function model ----------
+  // Each of the 64 breakpoints is either drawn by hand (overridden) or follows the
+  // Chebyshev mix, Σ wₙ·Tₙ(x) / max(1, Σ|wₙ|). With every weight at 0 the mix is flat at 0.
+  const NCHEB = 24;
+  const W = new Float32Array(NCHEB);   // weights for T1..T24, −1..1
+  W[0] = 1;                            // start neutral: T1 alone, a straight line
+  const drawn = new Float32Array(N);   // hand-drawn values
+  const over = new Uint8Array(N);      // 1 = breakpoint drawn by hand
+  const mix = new Float32Array(N);     // Chebyshev mix at each breakpoint
+  const valueAt = k => over[k] ? drawn[k] : mix[k];
+
+  function computeMix() {
+    let sum = 0;
+    for (let n = 0; n < NCHEB; n++) sum += Math.abs(W[n]);
+    const norm = Math.max(1, sum); // only scale down when the weights would exceed ±1
+    for (let k = 0; k < N; k++) {
+      const x = -1 + 2 * k / (N - 1);
+      let t0 = 1, t1 = x, acc = W[0] * x;            // T0 = 1, T1 = x
+      for (let n = 2; n <= NCHEB; n++) {              // Tn = 2x·Tn−1 − Tn−2
+        const t2 = 2 * x * t1 - t0; acc += W[n - 1] * t2; t0 = t1; t1 = t2;
+      }
+      mix[k] = clamp(acc / norm, -1, 1);
+    }
+  }
+
+  // ---------- table ----------
+  // Breakpoint k sits at table position k * 511/63, so breakpoint 1 maps input −1
+  // and breakpoint 64 maps input +1. Values between neighbours are linear, then
+  // every table value is rounded to the nearest signed 12-bit step.
+  function buildTable() {
+    computeMix();
+    for (let k = 0; k < N; k++) bp[k] = valueAt(k);
+    for (let i = 0; i < TABLE; i++) {
+      const pos = i * (N - 1) / (TABLE - 1);
+      let k = Math.floor(pos); if (k >= N - 1) k = N - 2;
+      const f = pos - k;
+      const v = bp[k] * (1 - f) + bp[k + 1] * f;
+      table[i] = clamp(Math.round(v * Q), -Q, Q - 1) / Q;
+    }
+    send({ t: new Float32Array(table) });
+    tableDirty = false;
+    updateReadouts(); updateDrawnCount();
+  }
+  const indexOf = x => Math.round((clamp(x, -1, 1) + 1) / 2 * (TABLE - 1));
+  const lookup = x => table[indexOf(x)];
+
+  // ---------- 8-bit readout scale: 0..255, 128 = zero ----------
+  const toByte = v => clamp(Math.round(128 + 128 * v), 0, 255);
+  const fromByte = n => (clamp(n, 0, 255) - 128) / 128;
+  const pad = (n, w) => String(n).padStart(w, "0");
+
+  // ---------- combined display ----------
+  // One screen shows the 64 points as dots and the 24 harmonic weights as bars.
+  // Edit mode P draws points; edit mode H sets harmonic weights.
+  const tf = document.getElementById("tf"), tg = tf.getContext("2d");
+  const releaseBtn = document.getElementById("releaseBtn");
+  const el = id => document.getElementById(id);
+  const SPAD = { l: 2, r: 6, t: 6, b: 26 }, INSET = 10;
+  let editMode = "P", activeP = 0, activeH = 0;
+
+  const modes = {
+    P: { n: N, slot: false, get: valueAt,
+         set: (k, v) => { drawn[k] = fromByte(toByte(v)); over[k] = 1; tableDirty = true; }, // on the 0–255 grid
+         release: k => { over[k] = 0; tableDirty = true; } },
+    H: { n: NCHEB, slot: true, get: k => W[k],
+         set: (k, v) => { W[k] = Math.abs(v) < 0.02 ? 0 : fromByte(toByte(v)); tableDirty = true; }, // snap near zero, 0–255 grid
+         release: k => { W[k] = 0; tableDirty = true; } }
+  };
+  const cur = () => modes[editMode];
+  const getActive = () => editMode === "P" ? activeP : activeH;
+  const setActive = k => { if (editMode === "P") activeP = k; else activeH = k; };
+
+  function setEditMode(m) {
+    editMode = m;
+    el("editP").setAttribute("aria-checked", m === "P");
+    el("editH").setAttribute("aria-checked", m === "H");
+    updateReadouts();
+  }
+  el("editP").addEventListener("click", () => setEditMode("P"));
+  el("editH").addEventListener("click", () => setEditMode("H"));
+
+  // Sizes inside the screen are designed for a 400 px plot and scale with its actual width.
+  const displayScale = () => clamp(tf.clientWidth / 418, 0.75, 2.5);
+  const geom = () => {
+    const r = tf.getBoundingClientRect(), k = displayScale();
+    return { r, L: (SPAD.l + INSET) * k, T: (SPAD.t + INSET) * k,
+             pw: r.width - (SPAD.l + SPAD.r + 2 * INSET) * k, ph: r.height - (SPAD.t + SPAD.b + 2 * INSET) * k };
+  };
+  const idxAt = (cx, g) => { const m = cur(), u = (cx - g.L) / g.pw;
+    return clamp(m.slot ? Math.floor(u * m.n) : Math.round(u * (m.n - 1)), 0, m.n - 1); };
+  const valAt = (cy, g) => clamp(1 - 2 * (cy - g.T) / g.ph, -1, 1);
+
+  let painting = false, lastIdx = 0, lastVal = 0;
+  function paint(e) {
+    const g = geom(), m = cur(), idx = idxAt(e.clientX - g.r.left, g), val = valAt(e.clientY - g.r.top, g);
+    if (painting) { // fill every point or bar crossed since the last event
+      const span = idx - lastIdx, steps = Math.abs(span);
+      for (let s = 1; s <= steps; s++) m.set(lastIdx + Math.sign(span) * s, lastVal + (val - lastVal) * s / steps);
+      if (!steps) m.set(idx, val);
+    } else m.set(idx, val);
+    lastIdx = idx; lastVal = val; setActive(idx); updateReadouts();
+  }
+  tf.addEventListener("pointerdown", e => { tf.setPointerCapture(e.pointerId); painting = false; paint(e); painting = true; });
+  tf.addEventListener("pointermove", e => {
+    if (painting) paint(e);
+    else { const g = geom(); setActive(idxAt(e.clientX - g.r.left, g)); updateReadouts(); }
+  });
+  ["pointerup","pointercancel"].forEach(ev => tf.addEventListener(ev, () => painting = false));
+  tf.addEventListener("dblclick", e => { const g = geom(); cur().release(idxAt(e.clientX - g.r.left, g)); updateReadouts(); });
+  tf.addEventListener("keydown", e => {
+    const m = cur(), k = getActive(), step = e.shiftKey ? 0.1 : 0.02;
+    if (e.key === "p" || e.key === "P") setEditMode("P");
+    else if (e.key === "h" || e.key === "H") setEditMode("H");
+    else if (e.key === "ArrowLeft") setActive(Math.max(0, k - 1));
+    else if (e.key === "ArrowRight") setActive(Math.min(m.n - 1, k + 1));
+    else if (e.key === "ArrowUp") m.set(k, clamp(m.get(k) + step, -1, 1));
+    else if (e.key === "ArrowDown") m.set(k, clamp(m.get(k) - step, -1, 1));
+    else if (e.key === "Delete" || e.key === "Backspace") m.release(k);
+    else if (e.key === "Home") setActive(0);
+    else if (e.key === "End") setActive(m.n - 1);
+    else return;
+    e.preventDefault(); updateReadouts();
+  });
+
+  // ---------- readout column ----------
+  const fields = [];
+  // Typing fills a field; a full field or Enter commits it, then moves on to `next`
+  // (Pnt → its Vl, Hrm → its Vl) or, for a value field, leaves the field.
+  // Up/Down move between the readout entries. BnkLoad and BnkStor are left out;
+  // Rls Pnt and Rls All are included only while they apply.
+  const NAV = ["inRcl", "inStr", "editSel", "inPnt", "inPv", "relPnt", "releaseBtn", "inHrm", "inHv"];
+  function navMove(from, dir) {
+    const list = NAV.filter(id => !el(id).disabled);
+    const i = list.indexOf(from), to = list[i + dir];
+    if (i >= 0 && to) el(to).focus();
+  }
+  function bindField(input, { min, max, width, get, apply, next, zero }) {
+    let fresh = false, dirty = false; // fresh: first digit replaces the value; dirty: user typed something
+    const show = () => { input.value = pad(get(), width); };
+    const commit = () => {
+      const n = parseInt(input.value, 10);
+      if (dirty && !isNaN(n)) apply(clamp(n, min, max));
+      dirty = false; show(); updateReadouts();
+    };
+    const advance = () => {
+      commit();
+      if (next) el(next).focus(); else input.blur();
+    };
+    input.addEventListener("input", () => {
+      input.value = input.value.replace(/\D/g, "");
+      dirty = true;
+      if (input.value.length >= width) advance();
+    });
+    input.addEventListener("focus", () => { fresh = true; dirty = false; });
+    input.addEventListener("keydown", e => {
+      if (fresh && /^\d$/.test(e.key)) { input.value = ""; fresh = false; }
+      if (e.key === "Enter") { e.preventDefault(); advance(); }
+      else if (zero && (e.key === "x" || e.key === "X")) { // X sets the value to 128 (zero)
+        e.preventDefault(); apply(128); dirty = false; show(); updateReadouts(); fresh = true;
+      }
+      else if (e.key === "Escape") { e.preventDefault(); dirty = false; show(); input.blur(); }
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); navMove(input.id, e.key === "ArrowUp" ? -1 : 1); }
+      else if (e.key === "ArrowLeft" || e.key === "ArrowRight") { // step the value: 1, or 10 with Shift
+        e.preventDefault();
+        const step = (e.shiftKey ? 10 : 1) * (e.key === "ArrowRight" ? 1 : -1);
+        apply(clamp(get() + step, min, max)); dirty = false; show(); updateReadouts(); fresh = true;
+      }
+    });
+    input.addEventListener("blur", commit);
+    fields.push({ input, show });
+  }
+  bindField(el("inPnt"), { min: 0, max: N - 1, width: 2, next: "inPv", get: () => activeP,
+    apply: n => { activeP = n; setEditMode("P"); } });
+  bindField(el("inPv"), { min: 0, max: 255, width: 3, zero: true, get: () => toByte(valueAt(activeP)),
+    apply: n => { modes.P.set(activeP, fromByte(n)); setEditMode("P"); } });
+  bindField(el("inHrm"), { min: 1, max: NCHEB, width: 2, next: "inHv", get: () => activeH + 1,
+    apply: n => { activeH = n - 1; setEditMode("H"); } });
+  bindField(el("inHv"), { min: 0, max: 255, width: 3, zero: true, get: () => toByte(W[activeH]),
+    apply: n => { W[activeH] = fromByte(n); tableDirty = true; setEditMode("H"); } }); // typed values are exact, no snap
+
+  function updateReadouts() {
+    fields.forEach(f => { if (document.activeElement !== f.input) f.show(); });
+    const rel = el("relPnt");
+    rel.disabled = !over[activeP];
+    rel.setAttribute("aria-label", over[activeP] ? `Release point ${pad(activeP, 2)} back to the mix` : "Point follows the mix");
+    const text = editMode === "P"
+      ? `Point ${pad(activeP, 2)}, value ${toByte(valueAt(activeP))}${over[activeP] ? ", drawn" : ""}`
+      : `Harmonic ${activeH + 1}, value ${toByte(W[activeH])}`;
+    tf.setAttribute("aria-valuenow", editMode === "P" ? toByte(valueAt(activeP)) : toByte(W[activeH]));
+    tf.setAttribute("aria-valuetext", text);
+  }
+  el("relPnt").addEventListener("click", () => { modes.P.release(activeP); updateReadouts(); });
+  // Edit line reached with the arrows: P or H (or Left / Right) switches mode
+  el("editSel").addEventListener("keydown", e => {
+    if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); navMove("editSel", e.key === "ArrowUp" ? -1 : 1); }
+    else if (e.key === "ArrowLeft" || e.key === "ArrowRight") { e.preventDefault(); setEditMode(e.key === "ArrowLeft" ? "P" : "H"); }
+    else if (/^[ph]$/i.test(e.key)) { e.preventDefault(); setEditMode(e.key.toUpperCase()); }
+    else if (e.key === "Escape") { e.preventDefault(); el("editSel").blur(); }
+  });
+  // Rls Pnt / Rls All reached with the arrows: Enter acts as a click (a mouse click always acts directly)
+  for (const id of ["relPnt", "releaseBtn"]) {
+    el(id).addEventListener("keydown", e => {
+      if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); navMove(id, e.key === "ArrowUp" ? -1 : 1); }
+      else if (e.key === "Enter") {
+        e.preventDefault();
+        const list = NAV.filter(x => !el(x).disabled), prev = list[list.indexOf(id) - 1];
+        el(id).click();
+        if (el(id).disabled && prev) el(prev).focus(); // it no longer applies: step back up
+      }
+      else if (e.key === "Escape") { e.preventDefault(); el(id).blur(); }
+    });
+  }
+
+  function updateDrawnCount() {
+    let c = 0; for (let k = 0; k < N; k++) c += over[k];
+    releaseBtn.setAttribute("aria-label", c ? `Release all ${c} drawn point${c === 1 ? "" : "s"}` : "No drawn points to release");
+    releaseBtn.disabled = !c;
+  }
+  releaseBtn.addEventListener("click", () => { over.fill(0); tableDirty = true; updateDrawnCount(); updateReadouts(); });
+
+  // ---------- slots 00–24 ----------
+  // A slot holds the 24 harmonic weights and the 64 points (drawn value, or null = follows the mix),
+  // all on the 0–255 readout scale. Every slot always holds a table; the default is T1 at 255,
+  // other harmonics 128, no drawn points. Slot 00 can't be stored to from the screen, only loaded
+  // from a bank file, and it's the reference for the overwrite prompt.
+  const NSLOT = 25;
+  const blankSlot = () => ({ w: Array.from({ length: NCHEB }, (_, k) => k === 0 ? 255 : 128), p: new Array(N).fill(null) });
+  let slots = Array.from({ length: NSLOT }, blankSlot), curSlot = null;
+  const capture = () => ({ w: Array.from(W, toByte), p: Array.from(drawn, (v, k) => over[k] ? toByte(v) : null) });
+  const sameSlot = (a, b) => a.w.every((v, k) => v === b.w[k]) && a.p.every((v, k) => v === b.p[k]);
+  function applySlot(d) {
+    for (let k = 0; k < NCHEB; k++) W[k] = fromByte(d.w[k]);
+    for (let k = 0; k < N; k++) { over[k] = d.p[k] === null ? 0 : 1; drawn[k] = d.p[k] === null ? 0 : fromByte(d.p[k]); }
+    tableDirty = true;
+  }
+  const flashing = {};
+  function flashDash(id) { // Store 00 or a number past 24: show "--" briefly
+    flashing[id] = true; updateSlotFields();
+    setTimeout(() => { flashing[id] = false; updateSlotFields(); }, 600);
+  }
+  function updateSlotFields() {
+    for (const id of ["inRcl", "inStr"]) {
+      const f = el(id);
+      if (document.activeElement !== f) f.value = flashing[id] || curSlot === null ? "--" : pad(curSlot, 2);
+    }
+  }
+  // The table as last loaded or stored; Load asks first if the screen differs from it
+  let baseline = null;
+  const isDirty = () => baseline && !sameSlot(capture(), baseline);
+  function recallSlot(n) {
+    const doLoad = () => {
+      applySlot(slots[n]); baseline = { w: slots[n].w.slice(), p: slots[n].p.slice() };
+      curSlot = n; updateSlotFields();
+    };
+    if (isDirty()) confirmBox(`Changes not saved.\nDiscard changes and load ${pad(n, 2)}?`, doLoad);
+    else doLoad();
+  }
+  // Edit mode follows the bank: H while every slot is the default table, P for any custom bank
+  const isDefaultBank = () => { const b = blankSlot(); return slots.every(d => sameSlot(d, b)); };
+  const defaultEditMode = () => setEditMode(isDefaultBank() ? "H" : "P");
+  function storeSlot(n) {
+    if (n === 0) { flashDash("inStr"); return; } // slot 00 can't be overwritten from the screen
+    const doStore = () => { slots[n] = capture(); baseline = slots[n]; curSlot = n; updateSlotFields(); saveSlots(); notify(`Stored to Slot ${pad(n, 2)}: Success`); };
+    if (!sameSlot(slots[n], slots[0])) confirmBox(`Overwrite data in Slot ${pad(n, 2)}?`, doStore);
+    else doStore();
+  }
+  // Two digits, or one digit and Enter, act straight away
+  function bindSlotField(input, act) {
+    const commit = () => {
+      const n = parseInt(input.value, 10);
+      input.blur();
+      if (n >= 0 && n < NSLOT) act(n); else if (!isNaN(n)) flashDash(input.id);
+    };
+    input.addEventListener("focus", () => { input.value = ""; });
+    input.addEventListener("keydown", e => {
+      if (e.key === "Enter") { e.preventDefault(); if (input.value) commit(); else input.blur(); }
+      else if (e.key === "Escape") { e.preventDefault(); input.blur(); }
+      else if (e.key === "ArrowUp" || e.key === "ArrowDown") { e.preventDefault(); navMove(input.id, e.key === "ArrowUp" ? -1 : 1); }
+      else if (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !/^\d$/.test(e.key)) e.preventDefault();
+    });
+    input.addEventListener("input", () => {
+      input.value = input.value.replace(/\D/g, "");
+      if (input.value.length >= 2) commit();
+    });
+    input.addEventListener("blur", updateSlotFields);
+  }
+  bindSlotField(el("inRcl"), recallSlot);
+  bindSlotField(el("inStr"), storeSlot);
+
+  // ---------- prompt ----------
+  let modalCb = null, modalReturn = null, modalTimer = null;
+  function confirmBox(text, onOk, okOnly = false) {
+    clearTimeout(modalTimer);
+    el("modalMsg").textContent = text;
+    el("modalInput").hidden = true;
+    el("modalActs").hidden = false;
+    el("modalCancel").hidden = okOnly;
+    el("modal").hidden = false;
+    modalCb = onOk; modalReturn = document.activeElement;
+    el("modalOk").focus();
+  }
+  // Brief status message in the same window, no buttons; closes on its own (or on Enter/Escape)
+  function notify(text, ms = 1400) {
+    clearTimeout(modalTimer);
+    el("modalMsg").textContent = text;
+    el("modalInput").hidden = true;
+    el("modalActs").hidden = true;
+    el("modal").hidden = false;
+    modalCb = null; modalReturn = null;
+    modalTimer = setTimeout(() => closeModal(false), ms);
+  }
+  // Same window with a text field (Enter = OK, Escape = Cancel); the first key typed replaces the suggestion
+  let promptFresh = false;
+  function promptBox(text, value, onOk) {
+    confirmBox(text, () => onOk(el("modalInput").value));
+    const f = el("modalInput");
+    f.hidden = false; f.value = value; promptFresh = true;
+    f.focus(); f.setSelectionRange(value.length, value.length);
+  }
+  el("modalInput").addEventListener("keydown", e => {
+    if (promptFresh && e.key.length === 1 && !e.ctrlKey && !e.metaKey) el("modalInput").value = "";
+    if (e.key !== "Shift") promptFresh = false;
+  });
+  function closeModal(ok) {
+    clearTimeout(modalTimer);
+    el("modal").hidden = true;
+    const cb = modalCb; modalCb = null;
+    if (modalReturn && modalReturn !== document.body && modalReturn.focus) modalReturn.focus({ preventScroll: true });
+    if (ok && cb) cb();
+  }
+  el("modalOk").addEventListener("click", () => closeModal(true));
+  el("modalCancel").addEventListener("click", () => closeModal(false));
+  document.addEventListener("keydown", e => {
+    if (el("modal").hidden) return;
+    if (e.key === "Enter") { e.preventDefault(); closeModal(true); }
+    else if (e.key === "Escape") { e.preventDefault(); closeModal(false); }
+    else if (e.key === "Tab" && !el("modalActs").hidden) { // keep focus inside the window
+      e.preventDefault();
+      const stops = ["modalInput", "modalOk", "modalCancel"].map(el).filter(x => !x.hidden);
+      const i = stops.indexOf(document.activeElement);
+      stops[(i + (e.shiftKey ? stops.length - 1 : 1)) % stops.length].focus();
+    }
+  }, true);
+
+  // ---------- bank files ----------
+  const row = (tag, a, b, vals) => `${tag} ${pad(a, 2)}-${pad(b, 2)}  ${vals.map(v => v === null ? "---" : pad(v, 3)).join(" ")}`;
+  function bankToText() {
+    const out = [
+      "WAVESHAPER BANK v2",
+      "# Transfer-function slots 00-24. Slot 00 can't be stored to from the screen, but loads from this file.",
+      "# Values use the on-screen scale 0-255, where 128 is zero.",
+      "# HRM: weights for harmonics T1-T24.  PNT: points 00-63, --- = follows the harmonic mix.",
+      "# A slot or line left out uses the default: T1 255, other harmonics 128, no drawn points.",
+      ""
+    ];
+    for (let n = 0; n < NSLOT; n++) {
+      const d = slots[n];
+      out.push(`SLOT ${pad(n, 2)}`, row("HRM", 1, 12, d.w.slice(0, 12)), row("HRM", 13, 24, d.w.slice(12)));
+      for (let a = 0; a < N; a += 16) out.push(row("PNT", a, a + 15, d.p.slice(a, a + 16)));
+      out.push("");
+    }
+    return out.join("\n");
+  }
+  function textToBank(txt) {
+    const lines = txt.split(/\r?\n/).map(l => l.trim()).filter(l => l && !l.startsWith("#"));
+    if (!lines.length || !/^WAVESHAPER BANK v2\b/i.test(lines[0])) throw new Error("header");
+    const res = Array.from({ length: NSLOT }, blankSlot);
+    let cur = -1;
+    for (const l of lines.slice(1)) {
+      let m;
+      if ((m = /^SLOT\s+(\d{1,2})$/i.exec(l))) {
+        cur = parseInt(m[1], 10);
+        if (cur >= NSLOT) cur = -1; else res[cur] = blankSlot();
+      } else if ((m = /^(HRM|PNT)\s+(\d+)-(\d+)\s+(.*)$/i.exec(l))) {
+        if (cur < 0) continue;
+        const isH = m[1].toUpperCase() === "HRM", start = parseInt(m[2], 10) - (isH ? 1 : 0);
+        m[4].split(/\s+/).forEach((tok, i) => {
+          const k = start + i, v = /^-+$/.test(tok) ? null : clamp(parseInt(tok, 10), 0, 255);
+          if (isH) { if (k >= 0 && k < NCHEB && v !== null && !isNaN(v)) res[cur].w[k] = v; }
+          else if (k >= 0 && k < N && (v === null || !isNaN(v))) res[cur].p[k] = v;
+        });
+      }
+    }
+    return res;
+  }
+  const downloadsP = window.claude?.use ? window.claude.use("downloads").catch(() => null) : Promise.resolve(null);
+  const cleanName = n => {
+    n = (n || "").trim().replace(/[\\/:*?"<>|]/g, "-") || "waveshaper-bank.txt";
+    return /\.txt$/i.test(n) ? n : n + ".txt";
+  };
+  async function saveViaBrowser(text, filename) {
+    const dl = await downloadsP;
+    if (dl) {
+      try { await dl.save({ filename, data: text }); }
+      catch (e) { if (e && e.code !== "declined") confirmBox("Bank file could not be saved here.", null, true); }
+    } else { // outside claude.ai: a plain browser download
+      const a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" }));
+      a.download = filename; a.click();
+      setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+    }
+  }
+  el("bankStr").addEventListener("click", async () => {
+    const text = bankToText();
+    // Where the browser allows it, its own save dialog picks both the name and the location
+    if (window.showSaveFilePicker) {
+      try {
+        const h = await window.showSaveFilePicker({ suggestedName: "waveshaper-bank.txt",
+          types: [{ description: "Waveshaper bank", accept: { "text/plain": [".txt"] } }] });
+        const w = await h.createWritable(); await w.write(text); await w.close();
+        return;
+      } catch (e) { if (e && e.name === "AbortError") return; } // blocked in this view: ask for a name instead
+    }
+    promptBox("Save bank as:", "waveshaper-bank.txt", name => saveViaBrowser(text, cleanName(name)));
+  });
+  el("bankRcl").addEventListener("click", () => el("bankFile").click());
+  el("bankFile").addEventListener("change", async e => {
+    const file = e.target.files[0]; e.target.value = "";
+    if (!file) return;
+    try {
+      slots = textToBank(await file.text()); // all 25 slots, 00 included
+      saveSlots(); updateSlotFields(); defaultEditMode();
+    } catch { confirmBox("Not a waveshaper bank file.", null, true); }
+  });
+
+  // ---------- slot persistence: your own private store on claude.ai, this browser otherwise ----------
+  const LS_KEY = "waveshaper-slots-v1";
+  let dbDoc = null, dbQueue = Promise.resolve();
+  const slotsObj = () => {
+    const o = {};
+    for (let n = 0; n < NSLOT; n++) o[pad(n, 2)] = { w: slots[n].w, p: slots[n].p.map(v => v === null ? -1 : v) };
+    return { version: 2, slots: o };
+  };
+  function loadSlotsObj(o) {
+    if (!o || typeof o.slots !== "object") return false;
+    const res = Array.from({ length: NSLOT }, blankSlot);
+    for (const [key, d] of Object.entries(o.slots)) {
+      const n = o.version === 2 ? parseInt(key, 10) : parseInt(key, 16); // version 1 used hex slots 1–F → 01–15
+      if (!(n >= (o.version === 2 ? 0 : 1) && n < NSLOT) || !d || !Array.isArray(d.w) || !Array.isArray(d.p) || d.w.length !== NCHEB || d.p.length !== N) continue;
+      res[n] = { w: d.w.map(v => clamp(v | 0, 0, 255)), p: d.p.map(v => v < 0 ? null : clamp(v | 0, 0, 255)) };
+    }
+    slots = res;
+    return true;
+  }
+  function saveSlots() {
+    const o = slotsObj();
+    try { localStorage.setItem(LS_KEY, JSON.stringify(o)); } catch {}
+    if (dbDoc) dbQueue = dbQueue.then(() => dbDoc.set(o)).catch(() => {});
+  }
+  async function initStorage() {
+    let hadLocal = false;
+    try { const raw = localStorage.getItem(LS_KEY); if (raw) hadLocal = loadSlotsObj(JSON.parse(raw)); } catch {}
+    if (!window.claude?.use) return;
+    try {
+      const [db, user] = await Promise.all([window.claude.use("db"), window.claude.use("user")]);
+      const id = db && user ? await user.id() : null;
+      if (!id) return;
+      const doc = db.doc(`data/users/${id}/waveshaper-bank`);
+      const snap = await Promise.race([doc.get(), new Promise((_, rej) => setTimeout(() => rej(new Error("timeout")), 10000))]);
+      dbDoc = doc;
+      if (snap.exists) {
+        const old = snap.data(); loadSlotsObj(old); defaultEditMode();
+        if (old && old.version !== 2) saveSlots(); // migrate the stored copy to the 00–24 layout
+        else try { localStorage.setItem(LS_KEY, JSON.stringify(slotsObj())); } catch {}
+      } else if (hadLocal) saveSlots(); // first visit with the store: carry over this browser's slots
+    } catch { dbDoc = null; }
+  }
+
+  // ---------- knobs and switches ----------
+  function makeKnob(el, get, set) {
+    const ptr = el.querySelector(".pointer");
+    const render = () => ptr.setAttribute("transform", `rotate(${-135 + get() * 270} 60 60)`);
+    let y0 = null, v0 = 0;
+    el.addEventListener("pointerdown", e => { y0 = e.clientY; v0 = get(); el.setPointerCapture(e.pointerId); });
+    el.addEventListener("pointermove", e => { if (y0 !== null) { set(clamp(v0 + (y0 - e.clientY) / 250, 0, 1)); render(); } });
+    ["pointerup","pointercancel"].forEach(ev => el.addEventListener(ev, () => y0 = null));
+    el.addEventListener("keydown", e => {
+      const s = e.shiftKey ? 0.05 : 0.01; let v = get();
+      if (e.key === "ArrowUp" || e.key === "ArrowRight") v += s;
+      else if (e.key === "ArrowDown" || e.key === "ArrowLeft") v -= s;
+      else if (e.key === "Home") v = 0; else if (e.key === "End") v = 1; else return;
+      e.preventDefault(); set(clamp(v, 0, 1)); render();
+    });
+    el.addEventListener("wheel", e => { e.preventDefault(); set(clamp(get() - e.deltaY / 2000, 0, 1)); render(); }, { passive: false });
+    render();
+    return render;
+  }
+
+  const $ = id => document.getElementById(id);
+  function setPitch(t) {
+    pitchT = t;
+    const f = freq(), n = noteName(f), hz = f < 100 ? f.toFixed(1) : Math.round(f);
+    $("pitchKnob").setAttribute("aria-valuenow", Math.round(f));
+    $("pitchKnob").setAttribute("aria-valuetext", `${hz} hertz, ${n}`);
+    send({ f0: f });
+  }
+  function setGain(v) {
+    inGain = v;
+    $("gainKnob").setAttribute("aria-valuenow", v.toFixed(2));
+    send({ gain: v });
+  }
+  const rateGet = () => modMode === "ratio" ? ratioT : rateT;
+  function setRate(t) {
+    const k = $("rateKnob");
+    if (modMode === "ratio") {
+      ratioT = t;
+      const r = ratioFromT(t), s = fmtRatio(r);
+      k.setAttribute("aria-valuemin", 0.0625); k.setAttribute("aria-valuemax", 16);
+      k.setAttribute("aria-valuenow", r.toFixed(3));
+      k.setAttribute("aria-valuetext", `principal to modulation ratio ${s}`);
+      send({ ratio: r, rm: true });
+      return;
+    }
+    rateT = t;
+    const f = modFreq(), lo = MOD_MIN, hi = MOD_MAX;
+    k.setAttribute("aria-valuemin", lo); k.setAttribute("aria-valuemax", hi);
+    k.setAttribute("aria-valuenow", f.toFixed(2)); k.setAttribute("aria-valuetext", fmtHz(f).replace("Hz", "hertz"));
+    send({ mf: f, rm: false });
+  }
+  // Exponential taper: knob position t (0..1) → index (0..1). Halfway ≈ 0.076.
+  const IDX_CURVE = 5;
+  const indexFromT = t => (Math.exp(IDX_CURVE * t) - 1) / (Math.exp(IDX_CURVE) - 1);
+  function setIndex(t) {
+    indexT = t; index = indexFromT(t);
+    const s = index < 0.1 ? index.toFixed(3) : index.toFixed(2);
+    $("indexKnob").setAttribute("aria-valuenow", s);
+    send({ idx: index });
+  }
+  makeKnob($("pitchKnob"), () => pitchT, setPitch);
+  makeKnob($("gainKnob"), () => inGain, setGain);
+  const renderRate = makeKnob($("rateKnob"), rateGet, setRate);
+  makeKnob($("indexKnob"), () => indexT, setIndex);
+  function setFilter(t) {
+    filtT = t;
+    const p = freq(), lo = Math.max(p / 4, 1), hi = Math.max(p * 64, 12000);
+    const fc = Math.min(lo * Math.pow(hi / lo, t), 21600);
+    $("filterKnob").setAttribute("aria-valuenow", t.toFixed(2));
+    $("filterKnob").setAttribute("aria-valuetext", `cutoff about ${Math.round(fc)} hertz`);
+    send({ filt: t });
+  }
+  function setFLQ(v) {
+    flq = v;
+    $("flqKnob").setAttribute("aria-valuenow", v.toFixed(2));
+    send({ res: v });
+  }
+  makeKnob($("filterKnob"), () => filtT, setFilter);
+  makeKnob($("flqKnob"), () => flq, setFLQ);
+  function setLevel(v) {
+    lvl = v;
+    const db = v <= 0 ? "off" : `${((v - 1) * 60).toFixed(0)} decibels`;
+    $("levelKnob").setAttribute("aria-valuenow", v.toFixed(2));
+    $("levelKnob").setAttribute("aria-valuetext", db);
+    send({ lvl: v });
+  }
+  makeKnob($("levelKnob"), () => lvl, setLevel);
+
+  // Mode: one button toggles Fixed ↔ Ratio.
+  // Type: one button counts 00 → 01 → 10 → 11, with FM as the high bit and TM as the low bit.
+  const TYPE_NAMES = ["off", "TM", "FM", "FM and TM"];
+  function updateSwitches() {
+    $("li-fixed").classList.toggle("on", modMode === "fixed");
+    $("li-ratio").classList.toggle("on", modMode === "ratio");
+    $("li-fm").classList.toggle("on", fmOn);
+    $("li-tm").classList.toggle("on", amOn);
+    document.querySelectorAll(".led-item").forEach(li => li.firstElementChild.classList.toggle("on", li.classList.contains("on")));
+    $("modeBtn").setAttribute("aria-label", `Mode: ${modMode === "ratio" ? "Ratio" : "Fixed"}. Press to switch.`);
+    $("typeBtn").setAttribute("aria-label", `Modulation type: ${TYPE_NAMES[typeBits]}. Press for next.`);
+  }
+  $("modeBtn").addEventListener("click", () => {
+    modMode = modMode === "fixed" ? "ratio" : "fixed";
+    setRate(rateGet()); renderRate(); updateSwitches();
+  });
+  $("typeBtn").addEventListener("click", () => {
+    typeBits = (typeBits + 1) & 3;
+    fmOn = !!(typeBits & 2); amOn = !!(typeBits & 1);
+    send({ fm: fmOn, am: amOn }); updateSwitches();
+  });
+
+  $("vol").addEventListener("input", e => {
+    volume = e.target.value / 100; $("volOut").textContent = e.target.value;
+    if (master) master.gain.setTargetAtTime(volume * volume, ctx.currentTime, 0.02);
+  });
+
+  // ---------- audio graph ----------
+  // voice (worklet: oscillators, modulation, shaper) → on/off envelope → volume → out
+  async function setup() {
+    ctx = new (window.AudioContext || window.webkitAudioContext)();
+    env = ctx.createGain(); env.gain.value = 0;
+    master = ctx.createGain(); master.gain.value = volume * volume;
+    let engine;
+    try {
+      const url = URL.createObjectURL(new Blob([WORKLET], { type: "application/javascript" }));
+      await ctx.audioWorklet.addModule(url);
+      voice = new AudioWorkletNode(ctx, "waveshaper-voice", { numberOfInputs: 0, outputChannelCount: [1] });
+      engine = "AudioWorklet";
+    } catch (err) {
+      // Same DSP on the older ScriptProcessorNode, for browsers that block the worklet
+      dsp = createDSP(ctx.sampleRate);
+      voice = ctx.createScriptProcessor(1024, 1, 1);
+      voice.onaudioprocess = e => dsp.render(e.outputBuffer.getChannelData(0));
+      engine = "ScriptProcessor (fallback)";
+    }
+    send(allParams());
+    $("engineOut").textContent = `Audio engine: ${engine}.`;
+    voice.connect(env); env.connect(master); master.connect(ctx.destination);
+  }
+
+  async function start() {
+    if (!ctx) await setup();
+    if (!playing) return;
+    ctx.resume();
+    const now = ctx.currentTime;
+    env.gain.cancelScheduledValues(now); env.gain.setValueAtTime(env.gain.value, now);
+    env.gain.linearRampToValueAtTime(1, now + 0.02);
+  }
+  function stop() {
+    if (!ctx) return;
+    const now = ctx.currentTime;
+    env.gain.cancelScheduledValues(now); env.gain.setValueAtTime(env.gain.value, now);
+    env.gain.linearRampToValueAtTime(0, now + 0.05);
+  }
+  const playBtn = $("play");
+  playBtn.addEventListener("click", () => {
+    playing = !playing;
+    playing ? start() : stop();
+    playBtn.textContent = playing ? "Stop" : "Play";
+    playBtn.setAttribute("aria-pressed", playing);
+  });
+
+  // ---------- drawing ----------
+  const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  function fit(c) {
+    const r = c.getBoundingClientRect(), d = window.devicePixelRatio || 1;
+    c.width = Math.round(r.width * d); c.height = Math.round(r.height * d);
+  }
+  const resize = () => { fit(tf); };
+  window.addEventListener("resize", resize); resize();
+
+  // One blink clock for the point marker and the field underline: 250 ms on, 250 ms off
+  let blinkOn = true;
+  const reduceMotion = matchMedia("(prefers-reduced-motion: reduce)");
+  const crtEl = document.querySelector(".crt");
+  const CRT = { cyan: "#55FFFF", magenta: "#FF55FF", blue: "#2424FF", red: "#FF4040", white: "#FFFFFF" };
+  function drawEditor() {
+    const d = (window.devicePixelRatio || 1) * displayScale(), Wd = tf.width, H = tf.height;
+    const F0 = { l: SPAD.l * d, t: SPAD.t * d, r: Wd - SPAD.r * d, b: H - SPAD.b * d };
+    const L = F0.l + INSET * d, T = F0.t + INSET * d;
+    const pw = F0.r - F0.l - 2 * INSET * d, ph = F0.b - F0.t - 2 * INSET * d;
+    const Xp = k => L + k / (N - 1) * pw, Xh = k => L + (k + 0.5) / NCHEB * pw;
+    const Y = v => T + (1 - v) / 2 * ph;
+    const px = (x, y, s, c) => { tg.fillStyle = c; tg.fillRect(Math.round(x - s / 2), Math.round(y - s / 2), s, s); };
+    tg.fillStyle = "#000"; tg.fillRect(0, 0, Wd, H);
+
+    // harmonic weights as blue bars from the center line
+    const slotW = pw / NCHEB, bw = slotW * 0.42;
+    tg.globalAlpha = editMode === "H" ? 1 : 0.5;
+    for (let k = 0; k < NCHEB; k++) {
+      if (!W[k]) continue;
+      const y0 = Y(0), y1 = Y(W[k]);
+      tg.fillStyle = CRT.blue; tg.fillRect(Xh(k) - bw / 2, Math.min(y0, y1), bw, Math.abs(y1 - y0));
+    }
+    tg.globalAlpha = 1;
+
+    // center line
+    for (let x = L; x <= L + pw; x += 6 * d) px(x, Y(0), 2 * d, CRT.red);
+
+    // pure-mix ghost dots under drawn points
+    tg.globalAlpha = 0.35;
+    for (let k = 0; k < N; k++) if (over[k]) px(Xp(k), Y(mix[k]), 2 * d, CRT.cyan);
+    tg.globalAlpha = editMode === "P" ? 1 : 0.75;
+    for (let k = 0; k < N; k++) px(Xp(k), Y(bp[k]), 4 * d, over[k] ? CRT.magenta : CRT.cyan);
+    tg.globalAlpha = 1;
+    if (editMode === "P") { // active point: white square ring
+      // four white dots right, above, left and below, on the shared 250 ms blink
+      if (blinkOn) {
+        const cx = Xp(activeP), cy = Y(bp[activeP]), o = 5 * d;
+        for (const [dx, dy] of [[o, 0], [0, -o], [-o, 0], [0, o]]) px(cx + dx, cy + dy, 2 * d, CRT.white);
+      }
+    }
+
+    // frame and axis numbers
+    tg.strokeStyle = CRT.magenta; tg.lineWidth = 2 * d;
+    tg.strokeRect(F0.l, F0.t, F0.r - F0.l, F0.b - F0.t);
+    tg.font = `${18 * d}px "VT323", ui-monospace, monospace`;
+    tg.textAlign = "center"; tg.textBaseline = "top";
+    const ly = F0.b + 6 * d;
+    const ticks = editMode === "H" ? [[0, 1], [4, 5], [9, 10], [14, 15], [19, 20], [23, 24]].map(([k, n]) => [Xh(k), n, k === activeH])
+                                   : [0, 16, 32, 48, 63].map(k => [Xp(k), pad(k, 2), k === activeP]);
+    for (const [x, label] of ticks) { tg.fillStyle = CRT.magenta; tg.fillText(label, x, ly); }
+    // active marker under the frame
+    const ax = editMode === "H" ? Xh(activeH) : Xp(activeP);
+    tg.fillStyle = CRT.white;
+    tg.beginPath(); tg.moveTo(ax, F0.b + 2 * d); tg.lineTo(ax - 4 * d, F0.b + 7 * d); tg.lineTo(ax + 4 * d, F0.b + 7 * d); tg.closePath(); tg.fill();
+  }
+
+  function frame() {
+    if (tableDirty) buildTable();
+    blinkOn = reduceMotion.matches || Math.floor(performance.now() / 250) % 2 === 0;
+    crtEl.classList.toggle("blink-on", blinkOn);
+    drawEditor();
+    requestAnimationFrame(frame);
+  }
+
+  setPitch(pitchT); setGain(inGain); setRate(rateT); setIndex(indexT); setFilter(filtT); setFLQ(flq); setLevel(lvl); updateSwitches(); setEditMode("P"); updateSlotFields(); initStorage(); defaultEditMode(); baseline = capture();
+  frame();
+})();
+</script>
+</body>
+</html>
